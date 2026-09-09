@@ -335,7 +335,7 @@ const STR = {
     retroDisguise: "It first disguised itself as heading elsewhere; its real goal never changed", retroUnsure: "Cannot tell",
     retroGoal: "Its final true destination:", next: "Next trial",
     postQ: [
-      { key: "confidence", type: "scale", text: "1. How confident were you in the prediction you just made?",
+      { key: "confidence", type: "scale", text: "1. How confident were you in your predictions?",
         labels: ["Not confident at all", "Very unconfident", "Somewhat unconfident", "Neutral", "Somewhat confident", "Very confident", "Extremely confident"] },
       { key: "predictability", type: "scale", text: "2. How predictable do you think the object's upcoming motion is?",
         labels: ["Completely unpredictable", "Very hard to predict", "Somewhat hard to predict", "Neutral", "Somewhat easy to predict", "Very easy to predict", "Extremely predictable"] },
@@ -638,6 +638,7 @@ function endTrialPlayback(){
   for (const b of $("retro-extra").querySelectorAll(".scale-buttons button")) b.classList.remove("sel");
   for (const r of $("retro-extra").querySelectorAll("input[type=radio]")) r.checked = false;
   $("btn-retro-ok").disabled = true; $("retro").classList.remove("hidden");
+  $("retro").querySelector(".panel").scrollTop = 0;
 }
 function retroReady(){
   const p = document.querySelector("input[name=retro]:checked");
