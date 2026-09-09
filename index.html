@@ -79,6 +79,18 @@
   .scale-caps span:nth-child(2){flex:0 0 auto; text-align:center;}
   .scale-caps span:last-child{text-align:right;}
   .panel .actions{display:flex; justify-content:flex-end; gap:10px; margin-top:16px;}
+  .intro-figs{display:grid; grid-template-columns:1fr 1fr; gap:20px; margin:20px 0 4px;}
+  @media (max-width:720px){ .intro-figs{grid-template-columns:1fr;} }
+  .fig{display:flex; flex-direction:column;}
+  .fig-frame{border:1px solid #262B33; border-radius:var(--radius); overflow:hidden; background:var(--canvas-bg);}
+  .fig-frame svg{display:block; width:100%; height:auto;}
+  .fig-cap{font-size:.82rem; color:var(--ink-soft); line-height:1.55; margin-top:9px;}
+  .mock-frame{border:1px solid var(--line); border-radius:var(--radius); background:var(--card); padding:18px 20px;}
+  .mock-frame *{pointer-events:none;}
+  .mock-frame h3{font-size:1rem; font-weight:650; margin-bottom:4px;}
+  .mock-frame .muted{font-size:.82rem; margin-bottom:10px;}
+  .mock-frame .slider-row{grid-template-columns:78px 1fr 34px; margin:9px 0;}
+  .mock-frame label{font-weight:550; font-size:.9rem;}
   @media (prefers-reduced-motion: reduce){ *{transition:none !important;} }
 </style>
 </head>
@@ -92,6 +104,25 @@
     </div>
     <div class="card">
       <div id="intro-text"></div>
+      <div class="intro-figs">
+        <div class="fig">
+          <div class="fig-frame" id="fig-scene"></div>
+          <p class="fig-cap" data-i18n="figSceneCap"></p>
+        </div>
+        <div class="fig">
+          <div class="mock-frame">
+            <h3 data-i18n="probeHead"></h3>
+            <p class="muted" data-i18n="probeSub"></p>
+            <div class="slider-row"><label data-i18n="goalA"></label><input type="range" min="0" max="100" value="18" disabled><span class="val mono">18</span></div>
+            <div class="slider-row"><label data-i18n="goalB"></label><input type="range" min="0" max="100" value="74" disabled><span class="val mono">74</span></div>
+            <div class="slider-row"><label data-i18n="goalC"></label><input type="range" min="0" max="100" value="12" disabled><span class="val mono">12</span></div>
+            <div class="divider"></div>
+            <div class="slider-row"><label data-i18n="misleadLabel"></label><input type="range" min="0" max="100" value="55" disabled><span class="val mono">55</span></div>
+            <p class="muted" style="margin:6px 0 0" data-i18n="misleadSub"></p>
+          </div>
+          <p class="fig-cap" data-i18n="figRateCap"></p>
+        </div>
+      </div>
       <div class="divider"></div>
       <h2 data-i18n="taskHead"></h2>
       <p data-i18n-html="task1"></p>
@@ -223,6 +254,9 @@ const DATA = {"scene":{"start":[0.0,0.0],"goals":[{"id":"A","x":-1250.0,"y":2800
 const STR = {
   zh: {
     title: "运动意图判断实验",
+    figSceneCap: "正式试次的画面：白色三角形是移动物体，细线是它已走过的路径，A / B / C 是三个可能的目的地。（图中路径仅为示意）",
+    figRateCap: "回放暂停时弹出的评分窗口：先对每个目标给出“它是真实目的地”的信心，再评估这段移动的误导程度。（图中数值仅为示例）",
+    figLblGoals: "三个可能的目的地", figLblObj: "当前位置与朝向", figLblTrail: "已走过的路径",
     framing: `<h2>背景</h2>
       <p>您将观看一个移动物体在二维平面上的运动轨迹。画面中的三个圆圈（A、B、C）代表三个可能的目的地。三角形符号表示该物体的当前位置与朝向，其身后的细线为已走过的路径。</p>
       <p>您的任务：根据运动的展开，持续判断该物体<strong>真正要去哪个目的地</strong>，以及它的移动<strong>是否在刻意掩饰或误导</strong>。</p>`,
@@ -272,6 +306,9 @@ const STR = {
   },
   en: {
     title: "Motion Intent Judgment Study",
+    figSceneCap: "The trial display: the white triangle is the moving object, the thin line is the path it has travelled, and A / B / C are the three possible destinations. (the path shown is only an illustration)",
+    figRateCap: "The rating window shown when the replay pauses: first rate your confidence that each goal is the true destination, then rate how misleading the motion is. (values shown are only an example)",
+    figLblGoals: "possible destinations", figLblObj: "position & heading", figLblTrail: "path travelled",
     framing: `<h2>Background</h2>
       <p>You will watch the track of a moving object in a two-dimensional plane. The three circles (A, B, C) are three possible destinations. The triangle shows the object's current position and heading; the thin line behind it is the track already travelled.</p>
       <p>Your task: as the track unfolds, continuously judge <strong>which destination the object is really heading for</strong>, and whether its movements are <strong>deliberately concealing or misleading</strong>.</p>`,
@@ -336,6 +373,65 @@ for (const el of document.querySelectorAll("[data-i18n-ph]")) el.placeholder = S
     LANG === "zh" ? `中文 <a href="${mk("en")}">English</a>` : `English <a href="${mk("zh")}">中文</a>`;
 }
 document.getElementById("intro-text").innerHTML = S.framing;
+
+/* ---- intro scene illustration: draws the trial display (goals, trail,
+   triangle) as a static labelled SVG, reusing the real scene geometry.
+   The path is a fixed demo curve that ends mid-field, so it points at no
+   particular goal and gives nothing away about any trial. ---- */
+(function buildSceneFigure(){
+  const host = document.getElementById("fig-scene");
+  if (!host) return;
+  const VB = { w:560, h:616 };
+  const WB = { x0:-1650, x1:1650, y0:-250, y1:3350 };
+  const mx = (x) => (x - WB.x0) / (WB.x1 - WB.x0) * VB.w;
+  const my = (y) => (1 - (y - WB.y0) / (WB.y1 - WB.y0)) * VB.h;
+  const parts = [];
+  parts.push(`<svg viewBox="0 0 ${VB.w} ${VB.h}" xmlns="http://www.w3.org/2000/svg" font-family="-apple-system,'Segoe UI','PingFang SC','Noto Sans CJK SC',sans-serif">`);
+  parts.push(`<rect x="0" y="0" width="${VB.w}" height="${VB.h}" fill="#12151A"/>`);
+  // grid
+  for (let gx = -1500; gx <= 1500; gx += 500){ const x = mx(gx).toFixed(1); parts.push(`<line x1="${x}" y1="0" x2="${x}" y2="${VB.h}" stroke="#1C2027" stroke-width="1"/>`); }
+  for (let gy = 0; gy <= 3000; gy += 500){ const y = my(gy).toFixed(1); parts.push(`<line x1="0" y1="${y}" x2="${VB.w}" y2="${y}" stroke="#1C2027" stroke-width="1"/>`); }
+  // goals
+  for (const g of DATA.scene.goals){
+    const gx = mx(g.x), gy = my(g.y);
+    parts.push(`<circle cx="${gx.toFixed(1)}" cy="${gy.toFixed(1)}" r="9" fill="none" stroke="#8E99A6" stroke-width="2.5"/>`);
+    parts.push(`<text x="${(gx + 15).toFixed(1)}" y="${(gy + 6).toFixed(1)}" fill="#B7C0CA" font-size="20" font-weight="600" font-family="ui-monospace,monospace">${g.id}</text>`);
+  }
+  // demo trail (world coords)
+  const path = [[0,0],[30,300],[120,600],[230,900],[300,1150],[300,1380],[250,1580],[190,1720]];
+  const d = path.map((p, i) => (i ? "L" : "M") + mx(p[0]).toFixed(1) + " " + my(p[1]).toFixed(1)).join(" ");
+  parts.push(`<path d="${d}" fill="none" stroke="rgba(124,141,163,0.85)" stroke-width="2.4"/>`);
+  // triangle at last point, pointing along heading
+  const a = path[path.length - 2], b = path[path.length - 1];
+  const cx = mx(b[0]), cy = my(b[1]);
+  let dx = mx(b[0]) - mx(a[0]), dy = my(b[1]) - my(a[1]);
+  const L = Math.hypot(dx, dy) || 1; dx /= L; dy /= L;
+  const px = -dy, py = dx;
+  const tip = [cx + dx * 16, cy + dy * 16];
+  const bc = [cx - dx * 8, cy - dy * 8];
+  const p1 = [bc[0] + px * 10, bc[1] + py * 10];
+  const p2 = [bc[0] - px * 10, bc[1] - py * 10];
+  parts.push(`<polygon points="${tip[0].toFixed(1)},${tip[1].toFixed(1)} ${p1[0].toFixed(1)},${p1[1].toFixed(1)} ${p2[0].toFixed(1)},${p2[1].toFixed(1)}" fill="#F4F6F8"/>`);
+  // callouts: pill + leader line to an anchor
+  const zh = LANG === "zh";
+  const charW = zh ? 16.5 : 8.2;
+  function callout(text, cxp, cyp, ax, ay){
+    const w = text.length * charW + 22, h = 28;
+    const x = cxp - w / 2, y = cyp - h / 2;
+    // leader from nearest pill edge toward anchor
+    const ex = Math.max(x, Math.min(ax, x + w));
+    const ey = Math.max(y, Math.min(ay, y + h));
+    parts.push(`<line x1="${ex.toFixed(1)}" y1="${ey.toFixed(1)}" x2="${ax.toFixed(1)}" y2="${ay.toFixed(1)}" stroke="#8E99A6" stroke-width="1.4"/>`);
+    parts.push(`<circle cx="${ax.toFixed(1)}" cy="${ay.toFixed(1)}" r="2.6" fill="#F4F6F8"/>`);
+    parts.push(`<rect x="${x.toFixed(1)}" y="${y.toFixed(1)}" width="${w.toFixed(1)}" height="${h}" rx="7" fill="#EDEFF1" stroke="#C9CED4" stroke-width="1"/>`);
+    parts.push(`<text x="${cxp.toFixed(1)}" y="${(cyp + 5).toFixed(1)}" fill="#191C20" font-size="15.5" text-anchor="middle">${text}</text>`);
+  }
+  callout(S.figLblGoals, 168, 176, mx(-1250), my(2800));
+  callout(S.figLblTrail, 150, 470, mx(120), my(600));
+  callout(S.figLblObj, 432, 300, cx, cy);
+  parts.push(`</svg>`);
+  host.innerHTML = parts.join("");
+})();
 
 /* ================= state ================= */
 let pid = "", order = [], cursor = 0, record = null;
